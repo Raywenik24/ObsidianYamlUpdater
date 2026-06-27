@@ -1,12 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>ObsidianYamlUpdater</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ObsidianYamlUpdater</title>
+  <link rel="stylesheet" href="./src/style.css"/>
 </head>
 <body>
-<div id="app"></div>
-<script src="./src/main.js" type="module"></script>
+
+<header>
+  <span class="app-title">ObsidianYamlUpdater</span>
+  <div class="vault-bar">
+    <span id="vault-path" class="vault-path muted">No vault selected</span>
+    <button id="btn-pick" class="btn btn-sm">Choose folder…</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- LEFT: note list -->
+  <section class="panel panel-notes">
+    <div class="panel-head">
+      <span class="panel-title">Notes</span>
+      <input id="note-filter" class="input input-filter" placeholder="Filter notes…" disabled/>
+    </div>
+    <div class="note-actions">
+      <button id="btn-select-all" class="btn btn-xs" disabled>Select all</button>
+      <button id="btn-select-none" class="btn btn-xs" disabled>None</button>
+      <span id="sel-count" class="muted sel-count"></span>
+    </div>
+    <div id="note-list" class="note-list">
+      <p class="empty-hint">Pick a vault folder to get started.</p>
+    </div>
+  </section>
+
+  <!-- MIDDLE: operation builder + preview -->
+  <section class="panel panel-ops">
+    <div class="panel-head">
+      <span class="panel-title">Operations</span>
+      <button id="btn-add-op" class="btn btn-sm" disabled>+ Add op</button>
+    </div>
+    <div id="ops-list" class="ops-list"></div>
+
+    <div class="preview-head">
+      <span class="panel-title">Preview</span>
+      <select id="preview-note-sel" class="input input-sm" disabled>
+        <option value="">— pick a note —</option>
+      </select>
+      <button id="btn-preview" class="btn btn-sm" disabled>Refresh</button>
+    </div>
+    <div class="preview-pane">
+      <div class="preview-col">
+        <div class="preview-label">Before</div>
+        <pre id="preview-before" class="preview-text muted">—</pre>
+      </div>
+      <div class="preview-col">
+        <div class="preview-label">After</div>
+        <pre id="preview-after" class="preview-text">—</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: actions + log -->
+  <section class="panel panel-log">
+    <div class="panel-head">
+      <span class="panel-title">Run</span>
+    </div>
+    <div class="run-actions">
+      <button id="btn-dryrun" class="btn btn-secondary" disabled>Dry-run</button>
+      <button id="btn-apply" class="btn btn-primary" disabled>Apply</button>
+    </div>
+    <div id="run-summary" class="run-summary muted"></div>
+    <div class="panel-title log-title">Log</div>
+    <div id="log-list" class="log-list">
+      <p class="empty-hint">Run a dry-run or apply to see results.</p>
+    </div>
+  </section>
+
+</main>
+
+<div id="toasts"></div>
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>

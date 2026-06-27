@@ -157,7 +157,12 @@ btnSelectNone.onclick = () => {
 
 // ── Op builder ─────────────────────────────────────────────
 const OP_KINDS = ['add', 'set', 'delete', 'rename', 'list-add', 'list-remove'];
-const COND_KINDS = ['key_exists', 'key_missing', 'value_equals', 'value_contains'];
+const COND_KINDS = [
+  'key_exists', 'key_missing', 'value_equals', 'value_contains',
+  'value_gt', 'value_lt', 'value_gte', 'value_lte',
+  'date_before', 'date_after',
+  'in_folder', 'in_folder_recursive', 'not_in_folder', 'not_in_folder_recursive',
+];
 
 btnAddOp.onclick = () => addOp({ kind: 'set', key: '', value: '', conds: [] });
 
@@ -219,13 +224,22 @@ function renderOps() {
 }
 
 function condRowHTML(c, oi, ci) {
-  const needsVal = c.kind === 'value_equals' || c.kind === 'value_contains';
+  const folderKinds = ['in_folder', 'in_folder_recursive', 'not_in_folder', 'not_in_folder_recursive'];
+  const numericKinds = ['value_gt', 'value_lt', 'value_gte', 'value_lte'];
+  const dateKinds = ['date_before', 'date_after'];
+  const isFolder = folderKinds.includes(c.kind);
+  const needsKey = !isFolder;
+  const needsVal = !['key_exists', 'key_missing'].includes(c.kind);
+  let valPlaceholder = 'Value';
+  if (dateKinds.includes(c.kind)) valPlaceholder = 'YYYY-MM-DD';
+  else if (numericKinds.includes(c.kind)) valPlaceholder = 'Number';
+  else if (isFolder) valPlaceholder = 'folder/path';
   return `<div class="cond-row">
     <select class="input input-sm cond-kind">
       ${COND_KINDS.map(k => `<option ${c.kind===k?'selected':''}>${k}</option>`).join('')}
     </select>
-    <input class="input input-sm cond-key" placeholder="Key" value="${esc(c.key)}"/>
-    <input class="input input-sm cond-val" placeholder="Value" value="${esc(c.value)}" ${needsVal?'':'disabled style="opacity:.3"'}/>
+    <input class="input input-sm cond-key" placeholder="Key" value="${esc(c.key)}" ${needsKey?'':'disabled style="opacity:.3"'}/>
+    <input class="input input-sm cond-val" placeholder="${valPlaceholder}" value="${esc(c.value)}" ${needsVal?'':'disabled style="opacity:.3"'}/>
     <button class="btn btn-danger cond-del">✕</button>
   </div>`;
 }

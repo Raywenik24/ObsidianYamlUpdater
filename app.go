@@ -79,13 +79,43 @@ func (a *App) Scan(root string) ([]NoteInfo, error) {
 	return out, nil
 }
 
+// normalizeFolderConds converts absolute folder condition values to vault-relative paths.
+// This lets users paste an absolute path from Explorer rather than a relative one.
+func (a *App) normalizeFolderConds(operations []ops.Op) []ops.Op {
+	if a.vaultRoot == "" {
+		return operations
+	}
+	folderKinds := map[ops.CondKind]bool{
+		ops.CondInFolder:             true,
+		ops.CondInFolderRecursive:    true,
+		ops.CondNotInFolder:          true,
+		ops.CondNotInFolderRecursive: true,
+	}
+	out := make([]ops.Op, len(operations))
+	for i, op := range operations {
+		conds := make([]ops.Condition, len(op.Conds))
+		for j, c := range op.Conds {
+			if folderKinds[c.Kind] && filepath.IsAbs(c.Value) {
+				if rel, err := filepath.Rel(a.vaultRoot, c.Value); err == nil {
+					c.Value = filepath.ToSlash(rel)
+				}
+			}
+			conds[j] = c
+		}
+		op.Conds = conds
+		out[i] = op
+	}
+	return out
+}
+
 // PreviewNote runs ops in-memory on one note; returns before/after frontmatter text.
 func (a *App) PreviewNote(notePath string, operations []ops.Op) (map[string]string, error) {
 	note, err := a.findNote(notePath)
 	if err != nil {
 		return nil, err
 	}
-	editSet, _ := ops.BuildEdits(operations, note.Fields, note.Meta)
+	operations = a.normalizeFolderConds(operations)
+	editSet, _ := ops.BuildEdits(operations, note.Fields, note.Meta, note.Rel)
 	before, after := vault.Preview(note, editSet)
 	return map[string]string{
 		"before": strings.Join(before, "\n"),
@@ -99,6 +129,7 @@ func (a *App) DryRun(notePaths []string, operations []ops.Op) ([]ops.Verdict, er
 	if err != nil {
 		return nil, err
 	}
+	operations = a.normalizeFolderConds(operations)
 	out := make([]ops.Verdict, len(notes))
 	for i, n := range notes {
 		out[i] = ops.DryRun(n, operations)
@@ -112,6 +143,7 @@ func (a *App) ApplyOps(notePaths []string, operations []ops.Op) ([]ops.Verdict, 
 	if err != nil {
 		return nil, err
 	}
+	operations = a.normalizeFolderConds(operations)
 	out := make([]ops.Verdict, len(notes))
 	for i, n := range notes {
 		out[i] = ops.Apply(n, operations)

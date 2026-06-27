@@ -1,7 +1,10 @@
 package ops
 
 import (
+	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"ObsidianYamlUpdater/internal/vault"
 )
@@ -24,6 +27,17 @@ const (
 	CondKeyMissing    CondKind = "key_missing"
 	CondValueEquals   CondKind = "value_equals"
 	CondValueContains CondKind = "value_contains"
+	CondValueGt       CondKind = "value_gt"
+	CondValueLt       CondKind = "value_lt"
+	CondValueGte      CondKind = "value_gte"
+	CondValueLte      CondKind = "value_lte"
+	CondDateBefore    CondKind = "date_before"
+	CondDateAfter     CondKind = "date_after"
+
+	CondInFolder             CondKind = "in_folder"
+	CondInFolderRecursive    CondKind = "in_folder_recursive"
+	CondNotInFolder          CondKind = "not_in_folder"
+	CondNotInFolderRecursive CondKind = "not_in_folder_recursive"
 )
 
 type Condition struct {
@@ -47,7 +61,7 @@ type Verdict struct {
 }
 
 // Evaluate checks all conditions. Returns true if the op should apply.
-func Evaluate(conds []Condition, fields map[string]string) bool {
+func Evaluate(conds []Condition, fields map[string]string, relPath string) bool {
 	for _, c := range conds {
 		val, exists := fields[c.Key]
 		switch c.Kind {
@@ -67,6 +81,66 @@ func Evaluate(conds []Condition, fields map[string]string) bool {
 			if !strings.Contains(strings.ToLower(val), strings.ToLower(c.Value)) {
 				return false
 			}
+		case CondValueGt, CondValueLt, CondValueGte, CondValueLte:
+			fv, err1 := strconv.ParseFloat(val, 64)
+			fc, err2 := strconv.ParseFloat(c.Value, 64)
+			if err1 != nil || err2 != nil {
+				return false
+			}
+			switch c.Kind {
+			case CondValueGt:
+				if !(fv > fc) {
+					return false
+				}
+			case CondValueLt:
+				if !(fv < fc) {
+					return false
+				}
+			case CondValueGte:
+				if !(fv >= fc) {
+					return false
+				}
+			case CondValueLte:
+				if !(fv <= fc) {
+					return false
+				}
+			}
+		case CondDateBefore, CondDateAfter:
+			tv, err1 := time.Parse("2006-01-02", val)
+			tc, err2 := time.Parse("2006-01-02", c.Value)
+			if err1 != nil || err2 != nil {
+				return false
+			}
+			switch c.Kind {
+			case CondDateBefore:
+				if !tv.Before(tc) {
+					return false
+				}
+			case CondDateAfter:
+				if !tv.After(tc) {
+					return false
+				}
+			}
+		case CondInFolder, CondNotInFolder:
+			dir := filepath.ToSlash(filepath.Dir(relPath))
+			cval := filepath.ToSlash(strings.TrimRight(c.Value, "/"))
+			match := dir == cval
+			if c.Kind == CondInFolder && !match {
+				return false
+			}
+			if c.Kind == CondNotInFolder && match {
+				return false
+			}
+		case CondInFolderRecursive, CondNotInFolderRecursive:
+			rel := filepath.ToSlash(relPath)
+			cval := filepath.ToSlash(strings.TrimRight(c.Value, "/"))
+			match := strings.HasPrefix(rel, cval+"/")
+			if c.Kind == CondInFolderRecursive && !match {
+				return false
+			}
+			if c.Kind == CondNotInFolderRecursive && match {
+				return false
+			}
 		}
 	}
 	return true
@@ -74,7 +148,7 @@ func Evaluate(conds []Condition, fields map[string]string) bool {
 
 // BuildEdits converts ops into an EditSet.
 // meta is note.Meta and is used to make rename list-aware.
-func BuildEdits(ops []Op, fields map[string]string, meta map[string]vault.FieldMeta) (set vault.EditSet, skipped []string) {
+func BuildEdits(ops []Op, fields map[string]string, meta map[string]vault.FieldMeta, relPath string) (set vault.EditSet, skipped []string) {
 	set = vault.EditSet{
 		Scalar:  map[string]string{},
 		List:    map[string][]vault.ListMutation{},
@@ -86,7 +160,7 @@ func BuildEdits(ops []Op, fields map[string]string, meta map[string]vault.FieldM
 	}
 
 	for _, op := range ops {
-		if !Evaluate(op.Conds, working) {
+		if !Evaluate(op.Conds, working, relPath) {
 			skipped = append(skipped, op.Kind.String()+" "+op.Key+" (condition)")
 			continue
 		}
@@ -123,7 +197,7 @@ func (k OpKind) String() string { return string(k) }
 
 // DryRun runs ops against a note in-memory, returns a Verdict without writing.
 func DryRun(note vault.Note, ops []Op) Verdict {
-	set, _ := BuildEdits(ops, note.Fields, note.Meta)
+	set, _ := BuildEdits(ops, note.Fields, note.Meta, note.Rel)
 	before, after := vault.Preview(note, set)
 	changes := diffFrontmatter(note.Fields, note.Meta, before, after)
 	if len(changes) == 0 {
@@ -134,7 +208,7 @@ func DryRun(note vault.Note, ops []Op) Verdict {
 
 // Apply runs ops and writes the file. Returns a Verdict with the outcome.
 func Apply(note vault.Note, ops []Op) Verdict {
-	set, skips := BuildEdits(ops, note.Fields, note.Meta)
+	set, skips := BuildEdits(ops, note.Fields, note.Meta, note.Rel)
 	if len(set.Scalar) == 0 && len(set.List) == 0 && len(set.Renames) == 0 {
 		reason := "no changes"
 		if len(skips) > 0 {

@@ -1,5 +1,5 @@
 import './style.css';
-import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset, LoadPreset, DeletePreset } from '../wailsjs/go/main/App';
+import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset, LoadPreset, DeletePreset, GetUndoable, UndoLastRun } from '../wailsjs/go/main/App';
 
 // ── State ──────────────────────────────────────────────────
 let allNotes = [];   // NoteInfo[]
@@ -27,6 +27,7 @@ const btnPresetSave  = document.getElementById('btn-preset-save');
 const btnPresetDel   = document.getElementById('btn-preset-delete');
 const btnDryrun      = document.getElementById('btn-dryrun');
 const btnApply       = document.getElementById('btn-apply');
+const btnUndo        = document.getElementById('btn-undo');
 const runSummary     = document.getElementById('run-summary');
 const logList        = document.getElementById('log-list');
 
@@ -304,10 +305,37 @@ btnApply.onclick = async () => {
     const changed = verdicts.filter(v => v.status === 'changed').length;
     const errors  = verdicts.filter(v => v.status === 'error').length;
     h.update(errors ? `Done — ${changed} changed, ${errors} errors` : `Done — ${changed} changed`, errors ? 'error' : 'success');
+    await refreshUndoButton();
   } catch (e) {
     h.update('Error: ' + e, 'error');
   }
 };
+
+// ── Undo ───────────────────────────────────────────────────
+async function refreshUndoButton() {
+  try {
+    const path = await GetUndoable();
+    btnUndo.classList.toggle('hidden', !path);
+  } catch {
+    btnUndo.classList.add('hidden');
+  }
+}
+
+btnUndo.onclick = async () => {
+  const h = toast('Undoing last run…', 'busy');
+  try {
+    const verdicts = await UndoLastRun();
+    renderLog(verdicts, false);
+    const restored = verdicts.filter(v => v.status === 'changed').length;
+    const errors   = verdicts.filter(v => v.status === 'error').length;
+    h.update(errors ? `Undone — ${restored} restored, ${errors} errors` : `Undone — ${restored} restored`, errors ? 'error' : 'success');
+    btnUndo.classList.add('hidden');
+  } catch (e) {
+    h.update('Undo failed: ' + e, 'error');
+  }
+};
+
+refreshUndoButton();
 
 function renderLog(verdicts, isDryRun) {
   logList.innerHTML = '';

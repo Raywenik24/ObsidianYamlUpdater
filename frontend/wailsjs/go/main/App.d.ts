@@ -9,6 +9,8 @@ export function DeletePreset(arg1:string):Promise<void>;
 
 export function DryRun(arg1:Array<string>,arg2:Array<ops.Op>):Promise<Array<ops.Verdict>>;
 
+export function GetUndoable():Promise<string>;
+
 export function ListPresets():Promise<Array<string>>;
 
 export function LoadPreset(arg1:string):Promise<Array<ops.Op>>;
@@ -20,3 +22,5 @@ export function PreviewNote(arg1:string,arg2:Array<ops.Op>):Promise<Record<strin
 export function SavePreset(arg1:string,arg2:Array<ops.Op>):Promise<void>;
 
 export function Scan(arg1:string):Promise<Array<main.NoteInfo>>;
+
+export function UndoLastRun():Promise<Array<ops.Verdict>>;

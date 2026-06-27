@@ -137,7 +137,15 @@ func (a *App) DryRun(notePaths []string, operations []ops.Op) ([]ops.Verdict, er
 	return out, nil
 }
 
-// ApplyOps applies ops and writes every changed note; also writes a .log file.
+// UndoEntry records one key's before/after state for a single apply run.
+type UndoEntry struct {
+	Path string `json:"path"`
+	Key  string `json:"key"`
+	Old  string `json:"old"` // scalar: old value; list: JSON-encoded []string; "" = key didn't exist
+	New  string `json:"new"` // scalar: new value; list: JSON-encoded []string; "" = key deleted
+}
+
+// ApplyOps applies ops and writes every changed note; also writes a .log and .undo.json file.
 func (a *App) ApplyOps(notePaths []string, operations []ops.Op) ([]ops.Verdict, error) {
 	notes, err := a.resolveNotes(notePaths)
 	if err != nil {
@@ -145,11 +153,98 @@ func (a *App) ApplyOps(notePaths []string, operations []ops.Op) ([]ops.Verdict, 
 	}
 	operations = a.normalizeFolderConds(operations)
 	out := make([]ops.Verdict, len(notes))
+	var undoEntries []UndoEntry
+
 	for i, n := range notes {
 		out[i] = ops.Apply(n, operations)
+		if out[i].Status == "changed" {
+			newNote, rerr := vault.ReadFull(n.Path, a.vaultRoot)
+			if rerr == nil {
+				undoEntries = append(undoEntries, buildUndoEntries(n.Path, n.Fields, n.Meta, newNote.Fields, newNote.Meta)...)
+			}
+		}
+	}
+
+	if len(undoEntries) > 0 {
+		a.writeUndo(undoEntries)
 	}
 	a.writeLog(out, operations)
 	return out, nil
+}
+
+// GetUndoable returns the path of the most recent unused .undo.json file, or "" if none.
+func (a *App) GetUndoable() (string, error) {
+	dir := "."
+	if exe, err := os.Executable(); err == nil {
+		dir = filepath.Dir(exe)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	var best string
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasSuffix(name, ".undo.json") {
+			full := filepath.Join(dir, name)
+			if full > best {
+				best = full
+			}
+		}
+	}
+	return best, nil
+}
+
+// UndoLastRun reads the most recent undo file and reverses every change it recorded.
+func (a *App) UndoLastRun() ([]ops.Verdict, error) {
+	path, err := a.GetUndoable()
+	if err != nil {
+		return nil, err
+	}
+	if path == "" {
+		return nil, fmt.Errorf("no undo file available")
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var entries []UndoEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, err
+	}
+
+	byPath := map[string][]UndoEntry{}
+	var pathOrder []string
+	for _, e := range entries {
+		if _, seen := byPath[e.Path]; !seen {
+			pathOrder = append(pathOrder, e.Path)
+		}
+		byPath[e.Path] = append(byPath[e.Path], e)
+	}
+
+	var verdicts []ops.Verdict
+	for _, notePath := range pathOrder {
+		note, rerr := vault.ReadFull(notePath, a.vaultRoot)
+		if rerr != nil {
+			verdicts = append(verdicts, ops.Verdict{Path: notePath, Status: "error", Reason: rerr.Error()})
+			continue
+		}
+		editSet := buildUndoEditSet(byPath[notePath])
+		changed, aerr := vault.Apply(note, editSet)
+		if aerr != nil {
+			verdicts = append(verdicts, ops.Verdict{Path: notePath, Status: "error", Reason: aerr.Error()})
+			continue
+		}
+		if len(changed) == 0 {
+			verdicts = append(verdicts, ops.Verdict{Path: notePath, Status: "skipped", Reason: "no changes"})
+		} else {
+			verdicts = append(verdicts, ops.Verdict{Path: notePath, Status: "changed", Changes: changed})
+		}
+	}
+
+	_ = os.Rename(path, path+".done")
+	return verdicts, nil
 }
 
 func (a *App) findNote(path string) (vault.Note, error) {
@@ -253,6 +348,127 @@ func (a *App) DeletePreset(name string) error {
 		return err
 	}
 	return os.Remove(filepath.Join(dir, name+".json"))
+}
+
+func buildUndoEntries(notePath string, bFields map[string]string, bMeta map[string]vault.FieldMeta, aFields map[string]string, aMeta map[string]vault.FieldMeta) []UndoEntry {
+	var entries []UndoEntry
+	seen := map[string]bool{}
+
+	for key := range aFields {
+		seen[key] = true
+		afm := aMeta[key]
+		bfm, bExists := bMeta[key]
+
+		if afm.IsList || (bExists && bfm.IsList) {
+			var oldItems, newItems []string
+			if bExists && bfm.IsList {
+				oldItems = bfm.Items
+				if oldItems == nil {
+					oldItems = []string{}
+				}
+			}
+			if afm.IsList {
+				newItems = afm.Items
+				if newItems == nil {
+					newItems = []string{}
+				}
+			}
+			if !undoItemsEqual(oldItems, newItems) {
+				oldJSON, _ := json.Marshal(oldItems)
+				newJSON, _ := json.Marshal(newItems)
+				entries = append(entries, UndoEntry{Path: notePath, Key: key, Old: string(oldJSON), New: string(newJSON)})
+			}
+		} else {
+			bVal := bFields[key]
+			aVal := aFields[key]
+			if !bExists {
+				entries = append(entries, UndoEntry{Path: notePath, Key: key, Old: "", New: aVal})
+			} else if bVal != aVal {
+				entries = append(entries, UndoEntry{Path: notePath, Key: key, Old: bVal, New: aVal})
+			}
+		}
+	}
+
+	for key := range bFields {
+		if seen[key] {
+			continue
+		}
+		bfm := bMeta[key]
+		if bfm.IsList {
+			items := bfm.Items
+			if items == nil {
+				items = []string{}
+			}
+			oldJSON, _ := json.Marshal(items)
+			entries = append(entries, UndoEntry{Path: notePath, Key: key, Old: string(oldJSON), New: "null"})
+		} else {
+			entries = append(entries, UndoEntry{Path: notePath, Key: key, Old: bFields[key], New: ""})
+		}
+	}
+	return entries
+}
+
+func buildUndoEditSet(entries []UndoEntry) vault.EditSet {
+	set := vault.EditSet{
+		Scalar:  map[string]string{},
+		List:    map[string][]vault.ListMutation{},
+		Renames: map[string]string{},
+	}
+	for _, e := range entries {
+		isListEntry := strings.HasPrefix(e.Old, "[") || strings.HasPrefix(e.New, "[") || e.New == "null"
+		if isListEntry {
+			var oldItems, newItems []string
+			if e.Old != "" && e.Old != "null" {
+				_ = json.Unmarshal([]byte(e.Old), &oldItems)
+			}
+			if e.New != "" && e.New != "null" {
+				_ = json.Unmarshal([]byte(e.New), &newItems)
+			}
+			newSet := map[string]bool{}
+			for _, item := range newItems {
+				newSet[item] = true
+			}
+			for _, item := range oldItems {
+				if !newSet[item] {
+					set.List[e.Key] = append(set.List[e.Key], vault.ListMutation{Item: item, Add: true})
+				}
+			}
+			oldSet := map[string]bool{}
+			for _, item := range oldItems {
+				oldSet[item] = true
+			}
+			for _, item := range newItems {
+				if !oldSet[item] {
+					set.List[e.Key] = append(set.List[e.Key], vault.ListMutation{Item: item, Add: false})
+				}
+			}
+		} else {
+			set.Scalar[e.Key] = e.Old
+		}
+	}
+	return set
+}
+
+func undoItemsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *App) writeUndo(entries []UndoEntry) {
+	ts := time.Now().Format("20060102-150405")
+	path := filepath.Join(".", fmt.Sprintf("ObsidianYamlUpdater-%s.undo.json", ts))
+	if exe, err := os.Executable(); err == nil {
+		path = filepath.Join(filepath.Dir(exe), fmt.Sprintf("ObsidianYamlUpdater-%s.undo.json", ts))
+	}
+	data, _ := json.MarshalIndent(entries, "", "  ")
+	_ = os.WriteFile(path, data, 0644)
 }
 
 func (a *App) writeLog(verdicts []ops.Verdict, operations []ops.Op) {

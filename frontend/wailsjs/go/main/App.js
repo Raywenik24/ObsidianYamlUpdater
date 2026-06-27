@@ -14,6 +14,10 @@ export function DryRun(arg1, arg2) {
   return window['go']['main']['App']['DryRun'](arg1, arg2);
 }
 
+export function GetUndoable() {
+  return window['go']['main']['App']['GetUndoable']();
+}
+
 export function ListPresets() {
   return window['go']['main']['App']['ListPresets']();
 }
@@ -36,4 +40,8 @@ export function SavePreset(arg1, arg2) {
 
 export function Scan(arg1) {
   return window['go']['main']['App']['Scan'](arg1);
+}
+
+export function UndoLastRun() {
+  return window['go']['main']['App']['UndoLastRun']();
 }

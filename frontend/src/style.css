@@ -215,6 +215,9 @@ main {
 .btn-primary:hover:not(:disabled) { background: var(--lavender); }
 .btn-secondary { background: var(--surface0); }
 .btn-danger { background: none; color: var(--red); border: 1px solid var(--surface1); font-size: 12px; padding: 2px 6px; }
+.btn-warning { background: var(--peach); color: var(--crust); }
+.btn-warning:hover:not(:disabled) { background: var(--yellow); }
+.hidden { display: none; }
 
 .input, select {
   background: var(--surface0);

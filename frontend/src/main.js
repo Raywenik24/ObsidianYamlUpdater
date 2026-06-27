@@ -14,6 +14,7 @@ const noteFilter     = document.getElementById('note-filter');
 const noteList       = document.getElementById('note-list');
 const btnSelectAll   = document.getElementById('btn-select-all');
 const btnSelectNone  = document.getElementById('btn-select-none');
+const btnCheck       = document.getElementById('btn-check');
 const selCount       = document.getElementById('sel-count');
 const btnAddOp       = document.getElementById('btn-add-op');
 const opsList        = document.getElementById('ops-list');
@@ -83,9 +84,37 @@ btnPick.onclick = async () => {
 };
 
 // ── Note list ──────────────────────────────────────────────
+let collapsedFolders = new Set();
+let lastClickedPath = null;
+let noteStatuses = new Map(); // path → 'changed' | 'skipped' | 'error'
+let checkTimer = null;
+
+function scheduleCheck() {
+  clearTimeout(checkTimer);
+  if (!selected.size || !ops.length) {
+    noteStatuses.clear();
+    renderNotes();
+    return;
+  }
+  checkTimer = setTimeout(runCheck, 600);
+}
+
+async function runCheck() {
+  const paths = [...selected];
+  if (!paths.length || !ops.length) return;
+  try {
+    const verdicts = await DryRun(paths, collectOps());
+    noteStatuses.clear();
+    for (const v of verdicts) noteStatuses.set(v.path, v.status);
+    renderNotes();
+  } catch { /* silent */ }
+}
+
 function loadNotes(notes) {
   allNotes = notes;
   selected.clear();
+  lastClickedPath = null;
+  noteStatuses.clear();
   knownKeys = [...new Set(notes.flatMap(n => Object.keys(n.fields || {})))].sort();
   const dl = document.getElementById('known-keys-list');
   dl.innerHTML = knownKeys.map(k => `<option value="${esc(k)}">`).join('');
@@ -96,6 +125,45 @@ function loadNotes(notes) {
   renderNotes();
   populatePreviewSel();
   updateRunButtons();
+}
+
+function buildTree(notes) {
+  const root = { children: {}, notes: [] };
+  for (const n of notes) {
+    const parts = n.rel.replace(/\\/g, '/').split('/');
+    parts.pop();
+    let node = root;
+    for (const part of parts) {
+      if (!node.children[part]) node.children[part] = { children: {}, notes: [] };
+      node = node.children[part];
+    }
+    node.notes.push(n);
+  }
+  return root;
+}
+
+function getAllDescendantNotes(node) {
+  const notes = [...node.notes];
+  for (const child of Object.values(node.children)) notes.push(...getAllDescendantNotes(child));
+  return notes;
+}
+
+function collectTreeNotes(node, folderPath) {
+  const result = [];
+  for (const [name, child] of Object.entries(node.children).sort(([a], [b]) => a.localeCompare(b))) {
+    const childPath = folderPath ? `${folderPath}/${name}` : name;
+    if (!collapsedFolders.has(childPath)) result.push(...collectTreeNotes(child, childPath));
+  }
+  for (const n of [...node.notes].sort((a, b) => a.title.localeCompare(b.title))) result.push(n);
+  return result;
+}
+
+function getVisibleNotesList() {
+  const q = noteFilter.value.toLowerCase();
+  const filtered = q ? allNotes.filter(n =>
+    n.title.toLowerCase().includes(q) || n.rel.toLowerCase().includes(q)
+  ) : allNotes;
+  return q ? filtered : collectTreeNotes(buildTree(filtered), '');
 }
 
 function renderNotes() {
@@ -111,34 +179,102 @@ function renderNotes() {
   }
 
   noteList.innerHTML = '';
-  for (const n of filtered) {
-    const item = document.createElement('div');
-    item.className = 'note-item' + (selected.has(n.path) ? ' selected' : '');
-    item.dataset.path = n.path;
-    item.innerHTML = `<input type="checkbox" ${selected.has(n.path) ? 'checked' : ''}/>
-      <div><div class="note-item-title">${esc(n.title)}</div><div class="note-item-rel">${esc(n.rel)}</div></div>`;
-    item.onclick = (e) => {
-      if (e.target.tagName === 'INPUT') return; // checkbox handles itself
-      const cb = item.querySelector('input');
-      cb.checked = !cb.checked;
-      toggleNote(n.path, cb.checked, item);
-    };
-    item.querySelector('input').onchange = (e) => toggleNote(n.path, e.target.checked, item);
-    noteList.appendChild(item);
+  if (q) {
+    for (const n of filtered) noteList.appendChild(makeNoteRow(n, 0));
+  } else {
+    renderTreeNode(buildTree(filtered), noteList, 0, '');
   }
   updateSelCount();
 }
 
-function toggleNote(path, checked, item) {
-  checked ? selected.add(path) : selected.delete(path);
-  item.classList.toggle('selected', checked);
-  updateSelCount();
-  updateRunButtons();
-  populatePreviewSel();
-  if (checked && !previewNoteSel.value) {
-    previewNoteSel.value = path;
-    runPreview();
+function renderTreeNode(node, container, depth, folderPath) {
+  for (const [name, child] of Object.entries(node.children).sort(([a], [b]) => a.localeCompare(b))) {
+    const childPath = folderPath ? `${folderPath}/${name}` : name;
+    const isCollapsed = collapsedFolders.has(childPath);
+    const allDesc = getAllDescendantNotes(child);
+    const allSel = allDesc.length > 0 && allDesc.every(n => selected.has(n.path));
+    const someSel = allDesc.some(n => selected.has(n.path));
+
+    const folderRow = document.createElement('div');
+    folderRow.className = 'tree-folder' + (allSel ? ' selected' : someSel ? ' partial' : '');
+    folderRow.style.paddingLeft = `${8 + depth * 16}px`;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'tree-chevron';
+    chevron.textContent = isCollapsed ? '▶' : '▼';
+    chevron.onclick = (e) => {
+      e.stopPropagation();
+      collapsedFolders.has(childPath) ? collapsedFolders.delete(childPath) : collapsedFolders.add(childPath);
+      renderNotes();
+    };
+
+    const label = document.createElement('span');
+    label.className = 'tree-folder-name';
+    label.textContent = name;
+
+    folderRow.appendChild(chevron);
+    folderRow.appendChild(label);
+    folderRow.onclick = (e) => {
+      if (e.target === chevron) return;
+      allSel ? allDesc.forEach(n => selected.delete(n.path)) : allDesc.forEach(n => selected.add(n.path));
+      renderNotes();
+      populatePreviewSel();
+      updateRunButtons();
+      scheduleCheck();
+    };
+
+    container.appendChild(folderRow);
+    if (!isCollapsed) renderTreeNode(child, container, depth + 1, childPath);
   }
+
+  for (const n of [...node.notes].sort((a, b) => a.title.localeCompare(b.title))) {
+    container.appendChild(makeNoteRow(n, depth));
+  }
+}
+
+function makeNoteRow(n, depth) {
+  const item = document.createElement('div');
+  const status = noteStatuses.get(n.rel);
+  item.className = 'tree-note' + (selected.has(n.path) ? ' selected' : '') + (status ? ` status-${status}` : '');
+  item.style.paddingLeft = `${8 + depth * 16}px`;
+  item.dataset.path = n.path;
+  const dot = status === 'skipped' ? `<span class="status-dot skipped" title="skipped">—</span>`
+            : status === 'error'   ? `<span class="status-dot error" title="error">⚠</span>`
+            : '';
+  item.innerHTML = `${dot}<span class="note-item-title">${esc(n.title)}</span>`;
+
+  item.onclick = (e) => {
+    if (e.shiftKey && lastClickedPath) {
+      const visible = getVisibleNotesList();
+      const lastIdx = visible.findIndex(x => x.path === lastClickedPath);
+      const currIdx = visible.findIndex(x => x.path === n.path);
+      if (lastIdx !== -1 && currIdx !== -1) {
+        const [lo, hi] = [Math.min(lastIdx, currIdx), Math.max(lastIdx, currIdx)];
+        visible.slice(lo, hi + 1).forEach(x => selected.add(x.path));
+      } else {
+        selected.add(n.path);
+      }
+    } else if (e.ctrlKey || e.metaKey) {
+      selected.has(n.path) ? selected.delete(n.path) : selected.add(n.path);
+      lastClickedPath = n.path;
+    } else {
+      const onlyThis = selected.size === 1 && selected.has(n.path);
+      selected.clear();
+      if (!onlyThis) selected.add(n.path);
+      lastClickedPath = n.path;
+    }
+    renderNotes();
+    updateSelCount();
+    updateRunButtons();
+    populatePreviewSel();
+    scheduleCheck();
+    if (selected.has(n.path) && !previewNoteSel.value) {
+      previewNoteSel.value = n.path;
+      runPreview();
+    }
+  };
+
+  return item;
 }
 
 function updateSelCount() {
@@ -148,14 +284,11 @@ function updateSelCount() {
 noteFilter.oninput = renderNotes;
 
 btnSelectAll.onclick = () => {
-  const q = noteFilter.value.toLowerCase();
-  const filtered = q ? allNotes.filter(n =>
-    n.title.toLowerCase().includes(q) || n.rel.toLowerCase().includes(q)
-  ) : allNotes;
-  filtered.forEach(n => selected.add(n.path));
+  getVisibleNotesList().forEach(n => selected.add(n.path));
   renderNotes();
   populatePreviewSel();
   updateRunButtons();
+  scheduleCheck();
 };
 
 btnSelectNone.onclick = () => {
@@ -163,6 +296,12 @@ btnSelectNone.onclick = () => {
   renderNotes();
   populatePreviewSel();
   updateRunButtons();
+  scheduleCheck();
+};
+
+btnCheck.onclick = () => {
+  clearTimeout(checkTimer);
+  runCheck();
 };
 
 // ── Op builder ─────────────────────────────────────────────
@@ -241,6 +380,7 @@ function renderOps() {
 
     opsList.appendChild(row);
   });
+  scheduleCheck();
 }
 
 function condRowHTML(c, oi, ci) {
@@ -393,6 +533,7 @@ function renderLog(verdicts, isDryRun) {
 
 function updateRunButtons() {
   const ready = selected.size > 0;
+  btnCheck.disabled = !ready;
   btnDryrun.disabled = !ready;
   btnApply.disabled = !ready;
 }

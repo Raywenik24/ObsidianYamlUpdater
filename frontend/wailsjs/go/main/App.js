@@ -10,6 +10,10 @@ export function DeletePreset(arg1) {
   return window['go']['main']['App']['DeletePreset'](arg1);
 }
 
+export function DiscardUndo() {
+  return window['go']['main']['App']['DiscardUndo']();
+}
+
 export function DryRun(arg1, arg2) {
   return window['go']['main']['App']['DryRun'](arg1, arg2);
 }

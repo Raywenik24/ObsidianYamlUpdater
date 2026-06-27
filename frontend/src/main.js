@@ -1,5 +1,5 @@
 import './style.css';
-import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset, LoadPreset, DeletePreset, GetUndoable, UndoLastRun } from '../wailsjs/go/main/App';
+import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset, LoadPreset, DeletePreset, GetUndoable, UndoLastRun, DiscardUndo } from '../wailsjs/go/main/App';
 import { WindowMinimise, WindowToggleMaximise, Quit } from '../wailsjs/runtime/runtime';
 
 // ── State ──────────────────────────────────────────────────
@@ -746,6 +746,7 @@ btnApply.onclick = async () => {
     btnUndo.classList.add('hidden');
     btnApply.textContent = 'Apply';
     updateRunButtons();
+    await DiscardUndo().catch(() => {});
     return;
   }
   const paths = [...selected];

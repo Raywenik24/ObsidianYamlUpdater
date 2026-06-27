@@ -185,27 +185,31 @@ func (a *App) ApplyOps(notePaths []string, operations []ops.Op) ([]ops.Verdict, 
 	return out, nil
 }
 
-// GetUndoable returns the path of the most recent unused .undo.json file, or "" if none.
-func (a *App) GetUndoable() (string, error) {
+func (a *App) undoPath() string {
 	dir := "."
 	if exe, err := os.Executable(); err == nil {
 		dir = filepath.Dir(exe)
 	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", err
+	return filepath.Join(dir, "ObsidianYamlUpdater.undo.json")
+}
+
+// GetUndoable returns the undo file path if it exists, or "" if none.
+func (a *App) GetUndoable() (string, error) {
+	p := a.undoPath()
+	if _, err := os.Stat(p); os.IsNotExist(err) {
+		return "", nil
 	}
-	var best string
-	for _, e := range entries {
-		name := e.Name()
-		if strings.HasSuffix(name, ".undo.json") {
-			full := filepath.Join(dir, name)
-			if full > best {
-				best = full
-			}
-		}
+	return p, nil
+}
+
+// DiscardUndo deletes the undo file (called when the user clicks Accept).
+func (a *App) DiscardUndo() error {
+	p := a.undoPath()
+	err := os.Remove(p)
+	if os.IsNotExist(err) {
+		return nil
 	}
-	return best, nil
+	return err
 }
 
 // UndoLastRun reads the most recent undo file and reverses every change it recorded.
@@ -256,7 +260,7 @@ func (a *App) UndoLastRun() ([]ops.Verdict, error) {
 		}
 	}
 
-	_ = os.Rename(path, path+".done")
+	_ = os.Remove(path)
 	return verdicts, nil
 }
 
@@ -475,21 +479,22 @@ func undoItemsEqual(a, b []string) bool {
 }
 
 func (a *App) writeUndo(entries []UndoEntry) {
-	ts := time.Now().Format("20060102-150405")
-	path := filepath.Join(".", fmt.Sprintf("ObsidianYamlUpdater-%s.undo.json", ts))
-	if exe, err := os.Executable(); err == nil {
-		path = filepath.Join(filepath.Dir(exe), fmt.Sprintf("ObsidianYamlUpdater-%s.undo.json", ts))
-	}
 	data, _ := json.MarshalIndent(entries, "", "  ")
-	_ = os.WriteFile(path, data, 0644)
+	_ = os.WriteFile(a.undoPath(), data, 0644)
+}
+
+func (a *App) logsDir() string {
+	dir := "logs"
+	if exe, err := os.Executable(); err == nil {
+		dir = filepath.Join(filepath.Dir(exe), "logs")
+	}
+	_ = os.MkdirAll(dir, 0755)
+	return dir
 }
 
 func (a *App) writeLog(verdicts []ops.Verdict, operations []ops.Op) {
 	ts := time.Now().Format("20060102-150405")
-	logPath := filepath.Join(".", fmt.Sprintf("ObsidianYamlUpdater-%s.log", ts))
-	if exe, err := os.Executable(); err == nil {
-		logPath = filepath.Join(filepath.Dir(exe), fmt.Sprintf("ObsidianYamlUpdater-%s.log", ts))
-	}
+	logPath := filepath.Join(a.logsDir(), fmt.Sprintf("ObsidianYamlUpdater-%s.log", ts))
 
 	var sb strings.Builder
 	sb.WriteString("ObsidianYamlUpdater — " + time.Now().Format("2006-01-02 15:04:05") + "\n")

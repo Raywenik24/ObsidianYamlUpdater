@@ -7,6 +7,8 @@ export function ApplyOps(arg1:Array<string>,arg2:Array<ops.Op>):Promise<Array<op
 
 export function DeletePreset(arg1:string):Promise<void>;
 
+export function DiscardUndo():Promise<void>;
+
 export function DryRun(arg1:Array<string>,arg2:Array<ops.Op>):Promise<Array<ops.Verdict>>;
 
 export function GetUndoable():Promise<string>;

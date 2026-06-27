@@ -156,7 +156,7 @@ btnSelectNone.onclick = () => {
 };
 
 // ── Op builder ─────────────────────────────────────────────
-const OP_KINDS = ['add', 'set', 'delete', 'rename'];
+const OP_KINDS = ['add', 'set', 'delete', 'rename', 'list-add', 'list-remove'];
 const COND_KINDS = ['key_exists', 'key_missing', 'value_equals', 'value_contains'];
 
 btnAddOp.onclick = () => addOp({ kind: 'set', key: '', value: '', conds: [] });
@@ -177,7 +177,9 @@ function renderOps() {
     row.className = 'op-row';
 
     const needsValue = op.kind !== 'delete';
-    const valueLabel = op.kind === 'rename' ? 'New key name' : 'Value';
+    const valueLabel = op.kind === 'rename' ? 'New key name'
+      : op.kind === 'list-add' || op.kind === 'list-remove' ? 'Item'
+      : 'Value';
 
     row.innerHTML = `
       <select class="op-kind" title="Operation type">

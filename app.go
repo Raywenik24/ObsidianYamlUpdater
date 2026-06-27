@@ -85,8 +85,8 @@ func (a *App) PreviewNote(notePath string, operations []ops.Op) (map[string]stri
 	if err != nil {
 		return nil, err
 	}
-	edits, _ := ops.BuildEdits(operations, note.Fields)
-	before, after := vault.Preview(note, edits)
+	editSet, _ := ops.BuildEdits(operations, note.Fields, note.Meta)
+	before, after := vault.Preview(note, editSet)
 	return map[string]string{
 		"before": strings.Join(before, "\n"),
 		"after":  strings.Join(after, "\n"),

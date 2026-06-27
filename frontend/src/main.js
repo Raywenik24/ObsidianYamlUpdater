@@ -94,7 +94,9 @@ btnPick.onclick = async () => {
 let collapsedFolders = new Set();
 let lastClickedPath = null;
 let noteStatuses = new Map(); // path → 'changed' | 'skipped' | 'error'
-let checkTimer = null;
+let checkTimer   = null;
+let dryRunDone   = false;
+let acceptMode   = false;
 
 function scheduleCheck() {
   clearTimeout(checkTimer);
@@ -131,7 +133,22 @@ function loadNotes(notes) {
   renderYamlFilters();
   renderNotes();
   populatePreviewSel();
-  updateRunButtons();
+  invalidateDryRun();
+}
+
+async function refreshNotesInPlace() {
+  try {
+    const notes = await Scan('');
+    allNotes = notes;
+    knownKeys = [...new Set(notes.flatMap(n => Object.keys(n.fields || {})))].sort();
+    selected = new Set([...selected].filter(p => notes.some(n => n.path === p)));
+    noteStatuses.clear();
+    renderYamlFilters();
+    renderNotes();
+    populatePreviewSel();
+    scheduleCheck();
+    if (previewNoteSel.value) runPreview();
+  } catch { /* silent — stale data is better than crashing */ }
 }
 
 function buildTree(notes) {
@@ -232,7 +249,7 @@ function renderTreeNode(node, container, depth, folderPath) {
       allSel ? allDesc.forEach(n => selected.delete(n.path)) : allDesc.forEach(n => selected.add(n.path));
       renderNotes();
       populatePreviewSel();
-      updateRunButtons();
+      invalidateDryRun();
       scheduleCheck();
     };
 
@@ -278,7 +295,7 @@ function makeNoteRow(n, depth) {
     }
     renderNotes();
     updateSelCount();
-    updateRunButtons();
+    invalidateDryRun();
     populatePreviewSel();
     scheduleCheck();
   };
@@ -389,7 +406,7 @@ btnSelectAll.onclick = () => {
   getVisibleNotesList().forEach(n => selected.add(n.path));
   renderNotes();
   populatePreviewSel();
-  updateRunButtons();
+  invalidateDryRun();
   scheduleCheck();
 };
 
@@ -397,7 +414,7 @@ btnSelectNone.onclick = () => {
   selected.clear();
   renderNotes();
   populatePreviewSel();
-  updateRunButtons();
+  invalidateDryRun();
   scheduleCheck();
 };
 
@@ -622,6 +639,7 @@ function renderOps() {
     opsList.appendChild(row);
   });
   scheduleCheck();
+  invalidateDryRun();
 }
 
 function condRowHTML(c, oi, ci) {
@@ -706,10 +724,15 @@ btnDryrun.onclick = async () => {
   const paths = [...selected];
   if (!paths.length) return;
   const currentOps = collectOps();
+  acceptMode = false;
+  btnApply.textContent = 'Apply';
+  btnUndo.classList.add('hidden');
   const h = toast(`Dry-running ${paths.length} notes…`, 'busy');
   try {
     const verdicts = await DryRun(paths, currentOps);
     renderLog(verdicts, true);
+    dryRunDone = true;
+    updateRunButtons();
     h.update('Dry-run complete', 'success');
   } catch (e) {
     h.update('Error: ' + e, 'error');
@@ -718,6 +741,13 @@ btnDryrun.onclick = async () => {
 
 // ── Apply ──────────────────────────────────────────────────
 btnApply.onclick = async () => {
+  if (acceptMode) {
+    acceptMode = false;
+    btnUndo.classList.add('hidden');
+    btnApply.textContent = 'Apply';
+    updateRunButtons();
+    return;
+  }
   const paths = [...selected];
   if (!paths.length) return;
   const currentOps = collectOps();
@@ -729,6 +759,11 @@ btnApply.onclick = async () => {
     const errors  = verdicts.filter(v => v.status === 'error').length;
     h.update(errors ? `Done — ${changed} changed, ${errors} errors` : `Done — ${changed} changed`, errors ? 'error' : 'success');
     await refreshUndoButton();
+    await refreshNotesInPlace();
+    dryRunDone = false;
+    acceptMode  = true;
+    btnApply.textContent = 'Accept';
+    btnApply.disabled    = false;
   } catch (e) {
     h.update('Error: ' + e, 'error');
   }
@@ -753,6 +788,7 @@ btnUndo.onclick = async () => {
     const errors   = verdicts.filter(v => v.status === 'error').length;
     h.update(errors ? `Undone — ${restored} restored, ${errors} errors` : `Undone — ${restored} restored`, errors ? 'error' : 'success');
     btnUndo.classList.add('hidden');
+    await refreshNotesInPlace();
   } catch (e) {
     h.update('Undo failed: ' + e, 'error');
   }
@@ -780,11 +816,18 @@ function renderLog(verdicts, isDryRun) {
   runSummary.textContent = `${isDryRun ? 'Dry-run: ' : ''}${changed} would change, ${skipped} skip, ${errored} error${errored !== 1 ? 's' : ''}`.replace('would change', isDryRun ? 'would change' : 'changed');
 }
 
+function invalidateDryRun() {
+  dryRunDone = false;
+  acceptMode  = false;
+  btnApply.textContent = 'Apply';
+  updateRunButtons();
+}
+
 function updateRunButtons() {
   const ready = selected.size > 0;
-  btnCheck.disabled = !ready;
+  btnCheck.disabled  = !ready;
   btnDryrun.disabled = !ready;
-  btnApply.disabled = !ready;
+  btnApply.disabled  = !ready || !dryRunDone;
 }
 
 // ── Modal prompt ───────────────────────────────────────────

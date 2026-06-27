@@ -5,3 +5,4 @@ build.sh
 buildgitbash.sh
 .vscode/*
 !.vscode/launch.json
+.claude/

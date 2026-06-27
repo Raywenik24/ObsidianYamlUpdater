@@ -394,12 +394,15 @@ func applyListMutations(lines []string, meta map[string]FieldMeta, key string, m
 	}
 
 	if keyLineIdx < 0 {
-		newLine := formatInlineList(key, currentItems)
 		ci := findFMClose(lines)
 		if ci < 0 {
 			return lines, ""
 		}
-		return sliceInsert(lines, ci, []string{newLine}), action
+		newKeyLines := []string{key + ":"}
+		for _, item := range currentItems {
+			newKeyLines = append(newKeyLines, "  - "+item)
+		}
+		return sliceInsert(lines, ci, newKeyLines), action
 	}
 
 	if format == "inline" {

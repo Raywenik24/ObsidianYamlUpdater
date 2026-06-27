@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -154,6 +155,72 @@ func (a *App) resolveNotes(paths []string) ([]vault.Note, error) {
 		}
 	}
 	return out, nil
+}
+
+func (a *App) presetsDir() (string, error) {
+	dir := "presets"
+	if exe, err := os.Executable(); err == nil {
+		dir = filepath.Join(filepath.Dir(exe), "presets")
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+func (a *App) ListPresets() ([]string, error) {
+	dir, err := a.presetsDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	names := []string{}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+			names = append(names, strings.TrimSuffix(e.Name(), ".json"))
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func (a *App) SavePreset(name string, operations []ops.Op) error {
+	dir, err := a.presetsDir()
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(operations, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, name+".json"), data, 0644)
+}
+
+func (a *App) LoadPreset(name string) ([]ops.Op, error) {
+	dir, err := a.presetsDir()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(dir, name+".json"))
+	if err != nil {
+		return nil, err
+	}
+	var operations []ops.Op
+	if err := json.Unmarshal(data, &operations); err != nil {
+		return nil, err
+	}
+	return operations, nil
+}
+
+func (a *App) DeletePreset(name string) error {
+	dir, err := a.presetsDir()
+	if err != nil {
+		return err
+	}
+	return os.Remove(filepath.Join(dir, name+".json"))
 }
 
 func (a *App) writeLog(verdicts []ops.Verdict, operations []ops.Op) {

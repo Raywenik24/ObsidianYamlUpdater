@@ -1,5 +1,5 @@
 import './style.css';
-import { PickVault, Scan, PreviewNote, DryRun, ApplyOps } from '../wailsjs/go/main/App';
+import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset, LoadPreset, DeletePreset } from '../wailsjs/go/main/App';
 
 // ── State ──────────────────────────────────────────────────
 let allNotes = [];   // NoteInfo[]
@@ -20,6 +20,11 @@ const previewNoteSel = document.getElementById('preview-note-sel');
 const btnPreview     = document.getElementById('btn-preview');
 const previewBefore  = document.getElementById('preview-before');
 const previewAfter   = document.getElementById('preview-after');
+const presetSel      = document.getElementById('preset-sel');
+const btnPresetNew   = document.getElementById('btn-preset-new');
+const btnPresetLoad  = document.getElementById('btn-preset-load');
+const btnPresetSave  = document.getElementById('btn-preset-save');
+const btnPresetDel   = document.getElementById('btn-preset-delete');
 const btnDryrun      = document.getElementById('btn-dryrun');
 const btnApply       = document.getElementById('btn-apply');
 const runSummary     = document.getElementById('run-summary');
@@ -313,6 +318,132 @@ function updateRunButtons() {
   btnDryrun.disabled = !ready;
   btnApply.disabled = !ready;
 }
+
+// ── Modal prompt ───────────────────────────────────────────
+const modalOverlay = document.getElementById('modal-overlay');
+const modalTitle   = document.getElementById('modal-title');
+const modalInput   = document.getElementById('modal-input');
+const modalOk      = document.getElementById('modal-ok');
+const modalCancel  = document.getElementById('modal-cancel');
+
+function openModal({ title, withInput, defaultVal = '' }) {
+  return new Promise(resolve => {
+    modalTitle.textContent = title;
+    modalInput.style.display = withInput ? '' : 'none';
+    if (withInput) { modalInput.value = defaultVal; modalInput.focus(); }
+    else modalOk.focus();
+    modalOverlay.classList.remove('hidden');
+
+    const cleanup = result => {
+      modalOverlay.classList.add('hidden');
+      modalOk.removeEventListener('click', onOk);
+      modalCancel.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const onOk     = () => cleanup(withInput ? (modalInput.value.trim() || null) : true);
+    const onCancel = () => cleanup(null);
+    const onKey    = e => { if (e.key === 'Enter') onOk(); if (e.key === 'Escape') onCancel(); };
+
+    modalOk.addEventListener('click', onOk);
+    modalCancel.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+const showPrompt  = (title, defaultVal = '') => openModal({ title, withInput: true, defaultVal });
+const showConfirm = (title) => openModal({ title, withInput: false });
+
+// ── Presets ────────────────────────────────────────────────
+async function refreshPresets() {
+  try {
+    const names = await ListPresets();
+    const prev = presetSel.value;
+    presetSel.innerHTML = '<option value="">— presets —</option>';
+    names.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n;
+      opt.textContent = n;
+      presetSel.appendChild(opt);
+    });
+    if (prev && names.includes(prev)) presetSel.value = prev;
+    presetSel.disabled = names.length === 0;
+    updatePresetButtons();
+  } catch (e) {
+    toast('Could not list presets: ' + e, 'error');
+  }
+}
+
+function updatePresetButtons() {
+  const sel = presetSel.value;
+  btnPresetLoad.disabled = !sel;
+  btnPresetDel.disabled = !sel;
+  btnPresetSave.disabled = false;
+}
+
+function clearOps() {
+  ops = [];
+  renderOps();
+}
+
+presetSel.onchange = async () => {
+  if (!presetSel.value) {
+    if (ops.length > 0 && !await showConfirm('Clear current operations?')) return;
+    clearOps();
+  }
+  updatePresetButtons();
+};
+
+btnPresetNew.onclick = async () => {
+  if (ops.length > 0 && !await showConfirm('Clear current operations?')) return;
+  clearOps();
+  presetSel.value = '';
+  updatePresetButtons();
+};
+
+btnPresetLoad.onclick = async () => {
+  const name = presetSel.value;
+  if (!name) return;
+  if (ops.length > 0 && !await showConfirm('Loading a preset will replace the current operations. Continue?')) return;
+  try {
+    const loaded = await LoadPreset(name);
+    ops = loaded.map(o => ({ kind: o.kind, key: o.key, value: o.value, conds: (o.conds || []).map(c => ({ kind: c.kind, key: c.key, value: c.value })) }));
+    renderOps();
+    toast(`Preset "${name}" loaded`, 'success');
+  } catch (e) {
+    toast('Load failed: ' + e, 'error');
+  }
+};
+
+btnPresetSave.onclick = async () => {
+  const name = await showPrompt('Preset name:');
+  if (!name) return;
+  const existing = [...presetSel.options].map(o => o.value).filter(Boolean);
+  if (existing.includes(name) && !await showConfirm(`Overwrite preset "${name}"?`)) return;
+  try {
+    await SavePreset(name, collectOps());
+    await refreshPresets();
+    presetSel.value = name;
+    updatePresetButtons();
+    toast(`Preset "${name}" saved`, 'success');
+  } catch (e) {
+    toast('Save failed: ' + e, 'error');
+  }
+};
+
+btnPresetDel.onclick = async () => {
+  const name = presetSel.value;
+  if (!name || !await showConfirm(`Delete preset "${name}"?`)) return;
+  try {
+    await DeletePreset(name);
+    await refreshPresets();
+    toast(`Preset "${name}" deleted`, 'info');
+  } catch (e) {
+    toast('Delete failed: ' + e, 'error');
+  }
+};
+
+refreshPresets();
 
 // ── Helpers ─────────────────────────────────────────────────
 function collectOps() {

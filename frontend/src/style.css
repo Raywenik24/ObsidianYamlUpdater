@@ -123,6 +123,17 @@ main {
 
 /* ── Ops builder ─────────────────────────── */
 
+.presets-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--surface0);
+  background: var(--mantle);
+  flex-shrink: 0;
+}
+.preset-sel { flex: 1; min-width: 0; font-size: 12px; }
+
 .ops-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; max-height: 40%; overflow-y: auto; }
 
 .op-row {
@@ -251,6 +262,23 @@ main {
 /* spin for busy toasts */
 .spin::before { content: "⟳"; display: inline-block; animation: spin .8s linear infinite; margin-right: 5px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Modal ───────────────────────────────── */
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: var(--mantle); border: 1px solid var(--surface1);
+  border-radius: 8px; padding: 20px; min-width: 300px;
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.6);
+}
+.modal-title { font-weight: 600; font-size: 14px; color: var(--lavender); }
+.modal-input { width: 100%; font-size: 13px; padding: 6px 10px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; }

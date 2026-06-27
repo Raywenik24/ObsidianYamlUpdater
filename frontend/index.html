@@ -40,6 +40,15 @@
       <span class="panel-title">Operations</span>
       <button id="btn-add-op" class="btn btn-sm" disabled>+ Add op</button>
     </div>
+    <div class="presets-bar">
+      <select id="preset-sel" class="input input-sm preset-sel" disabled>
+        <option value="">— presets —</option>
+      </select>
+      <button id="btn-preset-new" class="btn btn-xs">New</button>
+      <button id="btn-preset-load" class="btn btn-xs" disabled>Load</button>
+      <button id="btn-preset-save" class="btn btn-xs" disabled>Save</button>
+      <button id="btn-preset-delete" class="btn btn-xs btn-danger" disabled>Delete</button>
+    </div>
     <div id="ops-list" class="ops-list"></div>
 
     <div class="preview-head">
@@ -80,6 +89,17 @@
 </main>
 
 <div id="toasts"></div>
+
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div id="modal-title" class="modal-title"></div>
+    <input id="modal-input" class="input modal-input" type="text"/>
+    <div class="modal-actions">
+      <button id="modal-ok" class="btn btn-primary">OK</button>
+      <button id="modal-cancel" class="btn">Cancel</button>
+    </div>
+  </div>
+</div>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

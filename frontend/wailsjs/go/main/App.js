@@ -6,8 +6,20 @@ export function ApplyOps(arg1, arg2) {
   return window['go']['main']['App']['ApplyOps'](arg1, arg2);
 }
 
+export function DeletePreset(arg1) {
+  return window['go']['main']['App']['DeletePreset'](arg1);
+}
+
 export function DryRun(arg1, arg2) {
   return window['go']['main']['App']['DryRun'](arg1, arg2);
+}
+
+export function ListPresets() {
+  return window['go']['main']['App']['ListPresets']();
+}
+
+export function LoadPreset(arg1) {
+  return window['go']['main']['App']['LoadPreset'](arg1);
 }
 
 export function PickVault() {
@@ -16,6 +28,10 @@ export function PickVault() {
 
 export function PreviewNote(arg1, arg2) {
   return window['go']['main']['App']['PreviewNote'](arg1, arg2);
+}
+
+export function SavePreset(arg1, arg2) {
+  return window['go']['main']['App']['SavePreset'](arg1, arg2);
 }
 
 export function Scan(arg1) {

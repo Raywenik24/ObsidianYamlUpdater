@@ -164,6 +164,9 @@ main {
   flex-shrink: 0;
 }
 
+.preview-skips { padding: 5px 10px; font-size: 12px; border-bottom: 1px solid var(--surface0); }
+.preview-skips.is-warn  { background: var(--peach);  color: var(--crust); }
+.preview-skips.is-ok    { background: var(--green);  color: var(--crust); }
 .preview-pane { display: flex; flex: 1; overflow: hidden; min-height: 0; }
 .preview-col { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--surface0); overflow: hidden; }
 .preview-col:last-child { border-right: none; }

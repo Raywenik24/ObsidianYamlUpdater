@@ -115,11 +115,12 @@ func (a *App) PreviewNote(notePath string, operations []ops.Op) (map[string]stri
 		return nil, err
 	}
 	operations = a.normalizeFolderConds(operations)
-	editSet, _ := ops.BuildEdits(operations, note.Fields, note.Meta, note.Rel)
+	editSet, skipped := ops.BuildEdits(operations, note.Fields, note.Meta, note.Rel)
 	before, after := vault.Preview(note, editSet)
 	return map[string]string{
-		"before": strings.Join(before, "\n"),
-		"after":  strings.Join(after, "\n"),
+		"before":  strings.Join(before, "\n"),
+		"after":   strings.Join(after, "\n"),
+		"skipped": strings.Join(skipped, "; "),
 	}, nil
 }
 

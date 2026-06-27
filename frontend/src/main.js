@@ -273,6 +273,15 @@ async function runPreview() {
     const result = await PreviewNote(path, currentOps);
     previewBefore.textContent = result.before || '(no frontmatter)';
     previewAfter.textContent  = result.after  || '(no frontmatter)';
+    const skipsEl = document.getElementById('preview-skips');
+    skipsEl.style.display = '';
+    if (result.skipped) {
+      skipsEl.textContent = 'Skipped: ' + result.skipped;
+      skipsEl.className = 'preview-skips is-warn';
+    } else {
+      skipsEl.textContent = 'All ops will apply';
+      skipsEl.className = 'preview-skips is-ok';
+    }
   } catch (e) {
     toast('Preview error: ' + e, 'error');
   }

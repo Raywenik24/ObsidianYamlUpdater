@@ -131,6 +131,10 @@ function toggleNote(path, checked, item) {
   updateSelCount();
   updateRunButtons();
   populatePreviewSel();
+  if (checked && !previewNoteSel.value) {
+    previewNoteSel.value = path;
+    runPreview();
+  }
 }
 
 function updateSelCount() {
@@ -200,7 +204,7 @@ function renderOps() {
         <button class="btn btn-xs btn-add-cond">+ condition</button>
       </div>`;
 
-    row.querySelector('.op-kind').onchange = e => { op.kind = e.target.value; renderOps(); };
+    row.querySelector('.op-kind').onchange = e => { op.kind = e.target.value; renderOps(); if (previewNoteSel.value) runPreview(); };
     row.querySelector('.op-key').oninput = e => { op.key = e.target.value; };
     row.querySelector('.op-val').oninput = e => { op.value = e.target.value; };
     row.querySelector('.op-del').onclick = () => { ops.splice(i, 1); renderOps(); };

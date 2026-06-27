@@ -1,5 +1,6 @@
 import './style.css';
 import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset, LoadPreset, DeletePreset, GetUndoable, UndoLastRun } from '../wailsjs/go/main/App';
+import { WindowMinimise, WindowToggleMaximise, Quit } from '../wailsjs/runtime/runtime';
 
 // ── State ──────────────────────────────────────────────────
 let allNotes = [];        // NoteInfo[]
@@ -33,6 +34,11 @@ const btnApply       = document.getElementById('btn-apply');
 const btnUndo        = document.getElementById('btn-undo');
 const runSummary     = document.getElementById('run-summary');
 const logList        = document.getElementById('log-list');
+
+// ── Window controls ────────────────────────────────────────
+document.getElementById('btn-win-min').onclick   = () => WindowMinimise();
+document.getElementById('btn-win-max').onclick   = () => WindowToggleMaximise();
+document.getElementById('btn-win-close').onclick = () => Quit();
 
 // ── Toasts ─────────────────────────────────────────────────
 const TOAST_TTL = { success: 4000, info: 4000, error: 9000, busy: 0 };
@@ -277,10 +283,6 @@ function makeNoteRow(n, depth) {
     updateRunButtons();
     populatePreviewSel();
     scheduleCheck();
-    if (selected.has(n.path) && !previewNoteSel.value) {
-      previewNoteSel.value = n.path;
-      runPreview();
-    }
   };
 
   return item;
@@ -332,6 +334,15 @@ document.getElementById('btn-add-yaml-filter').onclick = () => {
   yamlFilters.push({ connector: 'AND', key: '', op: '=', value: '' });
   renderYamlFilters();
   renderNotes();
+};
+
+// ── YAML filter collapse ────────────────────────────────────
+let filtersCollapsed = false;
+document.getElementById('btn-toggle-filters').onclick = () => {
+  filtersCollapsed = !filtersCollapsed;
+  document.getElementById('yaml-filter-rows').style.display = filtersCollapsed ? 'none' : '';
+  document.getElementById('btn-add-yaml-filter').style.display = filtersCollapsed ? 'none' : '';
+  document.getElementById('btn-toggle-filters').textContent = filtersCollapsed ? '▶ YAML filters' : '▼';
 };
 
 function matchYamlFilters(note, filters) {
@@ -452,7 +463,7 @@ function renderOps() {
     opKeyEl.oninput = e => { op.key = e.target.value; };
     opKeyEl.onchange = e => { op.key = e.target.value; };
     row.querySelector('.op-val').oninput = e => { op.value = e.target.value; };
-    row.querySelector('.op-del').onclick = () => { ops.splice(i, 1); renderOps(); };
+    row.querySelector('.op-del').onclick = () => { ops.splice(i, 1); renderOps(); if (previewNoteSel.value) runPreview(); };
     row.querySelector('.btn-add-cond').onclick = () => {
       op.conds.push({ kind: 'key_exists', key: '', value: '' });
       renderOps();
@@ -506,7 +517,7 @@ function condRowHTML(c, oi, ci) {
 // ── Preview ────────────────────────────────────────────────
 function populatePreviewSel() {
   const prev = previewNoteSel.value;
-  previewNoteSel.innerHTML = '<option value="">— pick a note —</option>';
+  previewNoteSel.innerHTML = '';
   [...selected].forEach(path => {
     const n = allNotes.find(x => x.path === path);
     if (!n) return;
@@ -515,7 +526,12 @@ function populatePreviewSel() {
     opt.textContent = n.title;
     previewNoteSel.appendChild(opt);
   });
-  if (prev && selected.has(prev)) previewNoteSel.value = prev;
+  if (prev && selected.has(prev)) {
+    previewNoteSel.value = prev;
+  } else if (previewNoteSel.options.length > 0) {
+    previewNoteSel.value = previewNoteSel.options[0].value;
+    if (previewNoteSel.value !== prev) runPreview();
+  }
   previewNoteSel.disabled = selected.size === 0;
   btnPreview.disabled = selected.size === 0;
 }
@@ -527,16 +543,19 @@ async function runPreview() {
   const path = previewNoteSel.value;
   if (!path) return;
   const currentOps = collectOps();
+  const skipsEl = document.getElementById('preview-skips');
   try {
     const result = await PreviewNote(path, currentOps);
     previewBefore.textContent = result.before || '(no frontmatter)';
     previewAfter.textContent  = result.after  || '(no frontmatter)';
-    const skipsEl = document.getElementById('preview-skips');
-    skipsEl.style.display = '';
-    if (result.skipped) {
+    if (!currentOps.length) {
+      skipsEl.style.display = 'none';
+    } else if (result.skipped) {
+      skipsEl.style.display = '';
       skipsEl.textContent = 'Skipped: ' + result.skipped;
       skipsEl.className = 'preview-skips is-warn';
     } else {
+      skipsEl.style.display = '';
       skipsEl.textContent = 'All ops will apply';
       skipsEl.className = 'preview-skips is-ok';
     }
@@ -721,6 +740,7 @@ btnPresetLoad.onclick = async () => {
     const loaded = await LoadPreset(name);
     ops = loaded.map(o => ({ kind: o.kind, key: o.key, value: o.value, conds: (o.conds || []).map(c => ({ kind: c.kind, key: c.key, value: c.value })) }));
     renderOps();
+    if (previewNoteSel.value) runPreview();
     toast(`Preset "${name}" loaded`, 'success');
   } catch (e) {
     toast('Load failed: ' + e, 'error');

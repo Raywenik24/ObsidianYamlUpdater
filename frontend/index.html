@@ -9,10 +9,16 @@
 <body>
 
 <header>
+  <img src="/appicon.png" class="titlebar-icon" alt=""/>
   <span class="app-title">ObsidianYamlUpdater</span>
   <div class="vault-bar">
     <span id="vault-path" class="vault-path muted">No vault selected</span>
     <button id="btn-pick" class="btn btn-sm">Choose folder…</button>
+  </div>
+  <div class="titlebar-controls">
+    <button id="btn-win-min" class="tc-btn" title="Minimize">&#x2212;</button>
+    <button id="btn-win-max" class="tc-btn" title="Maximize">&#x25A1;</button>
+    <button id="btn-win-close" class="tc-btn tc-close" title="Close">&#x2715;</button>
   </div>
 </header>
 
@@ -22,12 +28,15 @@
   <section class="panel panel-notes">
     <div class="panel-head">
       <span class="panel-title">Notes</span>
+    </div>
+    <div class="note-filter-bar">
       <input id="note-filter" class="input input-filter" placeholder="Filter notes…" disabled/>
     </div>
     <div id="yaml-filter-section" class="yaml-filter-section">
       <div id="yaml-filter-rows" class="yaml-filter-rows"></div>
       <div class="yaml-filter-add-bar">
         <button id="btn-add-yaml-filter" class="btn btn-xs" disabled>+ YAML filter</button>
+        <button id="btn-toggle-filters" class="btn btn-xs">▼</button>
       </div>
     </div>
 
@@ -55,15 +64,13 @@
       <button id="btn-preset-new" class="btn btn-xs">New</button>
       <button id="btn-preset-load" class="btn btn-xs" disabled>Load</button>
       <button id="btn-preset-save" class="btn btn-xs" disabled>Save</button>
-      <button id="btn-preset-delete" class="btn btn-xs btn-danger" disabled>Delete</button>
+      <button id="btn-preset-delete" class="btn btn-danger btn-xs" disabled>Delete</button>
     </div>
     <div id="ops-list" class="ops-list"></div>
 
     <div class="preview-head">
       <span class="panel-title">Preview</span>
-      <select id="preview-note-sel" class="input input-sm" disabled>
-        <option value="">— pick a note —</option>
-      </select>
+      <select id="preview-note-sel" class="input input-sm" disabled></select>
       <button id="btn-preview" class="btn btn-sm" disabled>Refresh</button>
     </div>
     <div id="preview-skips" class="preview-skips" style="display:none"></div>

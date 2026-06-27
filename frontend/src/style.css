@@ -232,6 +232,7 @@ main {
 }
 .input:focus, select:focus { outline: none; border-color: var(--mauve); }
 .input:disabled, select:disabled { opacity: .4; }
+select option { background: var(--surface0); color: var(--text); }
 .input-sm { font-size: 12px; flex: 1; min-width: 0; }
 
 .muted { color: var(--overlay0); }

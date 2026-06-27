@@ -5,6 +5,7 @@ import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset
 let allNotes = [];   // NoteInfo[]
 let selected = new Set(); // paths
 let ops = [];        // {kind, key, value, conds:[]}
+let knownKeys = [];  // unique YAML keys across all notes
 
 // ── DOM refs ───────────────────────────────────────────────
 const btnPick        = document.getElementById('btn-pick');
@@ -85,6 +86,9 @@ btnPick.onclick = async () => {
 function loadNotes(notes) {
   allNotes = notes;
   selected.clear();
+  knownKeys = [...new Set(notes.flatMap(n => Object.keys(n.fields || {})))].sort();
+  const dl = document.getElementById('known-keys-list');
+  dl.innerHTML = knownKeys.map(k => `<option value="${esc(k)}">`).join('');
   noteFilter.disabled = false;
   btnSelectAll.disabled = false;
   btnSelectNone.disabled = false;
@@ -191,12 +195,19 @@ function renderOps() {
     const valueLabel = op.kind === 'rename' ? 'New key name'
       : op.kind === 'list-add' || op.kind === 'list-remove' ? 'Item'
       : 'Value';
+    const isAddOp = op.kind === 'add';
+    const opKeyHTML = isAddOp
+      ? `<input class="input op-key" list="known-keys-list" placeholder="Key" value="${esc(op.key)}"/>`
+      : `<select class="input op-key">
+           <option value="" ${!op.key ? 'selected' : ''}>— key —</option>
+           ${knownKeys.map(k => `<option value="${esc(k)}" ${op.key === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}
+         </select>`;
 
     row.innerHTML = `
       <select class="op-kind" title="Operation type">
         ${OP_KINDS.map(k => `<option ${op.kind===k?'selected':''}>${k}</option>`).join('')}
       </select>
-      <input class="input op-key" placeholder="Key" value="${esc(op.key)}"/>
+      ${opKeyHTML}
       <input class="input op-val" placeholder="${valueLabel}" value="${esc(op.value)}" ${needsValue?'':'disabled style="opacity:.3"'}/>
       <button class="btn btn-danger op-del" title="Remove">✕</button>
       <div class="op-conds">
@@ -205,7 +216,9 @@ function renderOps() {
       </div>`;
 
     row.querySelector('.op-kind').onchange = e => { op.kind = e.target.value; renderOps(); if (previewNoteSel.value) runPreview(); };
-    row.querySelector('.op-key').oninput = e => { op.key = e.target.value; };
+    const opKeyEl = row.querySelector('.op-key');
+    opKeyEl.oninput = e => { op.key = e.target.value; };
+    opKeyEl.onchange = e => { op.key = e.target.value; };
     row.querySelector('.op-val').oninput = e => { op.value = e.target.value; };
     row.querySelector('.op-del').onclick = () => { ops.splice(i, 1); renderOps(); };
     row.querySelector('.btn-add-cond').onclick = () => {
@@ -215,8 +228,9 @@ function renderOps() {
     row.querySelectorAll('.cond-kind').forEach((sel, ci) => {
       sel.onchange = e => { op.conds[ci].kind = e.target.value; renderOps(); };
     });
-    row.querySelectorAll('.cond-key').forEach((inp, ci) => {
-      inp.oninput = e => { op.conds[ci].key = e.target.value; };
+    row.querySelectorAll('.cond-key').forEach((sel, ci) => {
+      sel.oninput = e => { op.conds[ci].key = e.target.value; };
+      sel.onchange = e => { op.conds[ci].key = e.target.value; };
     });
     row.querySelectorAll('.cond-val').forEach((inp, ci) => {
       inp.oninput = e => { op.conds[ci].value = e.target.value; };
@@ -240,11 +254,17 @@ function condRowHTML(c, oi, ci) {
   if (dateKinds.includes(c.kind)) valPlaceholder = 'YYYY-MM-DD';
   else if (numericKinds.includes(c.kind)) valPlaceholder = 'Number';
   else if (isFolder) valPlaceholder = 'folder/path';
+  const keyFieldHTML = needsKey
+    ? `<select class="input input-sm cond-key">
+         <option value="" ${!c.key ? 'selected' : ''}>— key —</option>
+         ${knownKeys.map(k => `<option value="${esc(k)}" ${c.key === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}
+       </select>`
+    : `<select class="input input-sm cond-key" disabled style="opacity:.3"><option>Key</option></select>`;
   return `<div class="cond-row">
     <select class="input input-sm cond-kind">
       ${COND_KINDS.map(k => `<option ${c.kind===k?'selected':''}>${k}</option>`).join('')}
     </select>
-    <input class="input input-sm cond-key" placeholder="Key" value="${esc(c.key)}" ${needsKey?'':'disabled style="opacity:.3"'}/>
+    ${keyFieldHTML}
     <input class="input input-sm cond-val" placeholder="${valPlaceholder}" value="${esc(c.value)}" ${needsVal?'':'disabled style="opacity:.3"'}/>
     <button class="btn btn-danger cond-del">✕</button>
   </div>`;

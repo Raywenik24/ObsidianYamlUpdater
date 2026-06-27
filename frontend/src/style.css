@@ -361,6 +361,29 @@ main {
 select option { background: var(--surface0); color: var(--text); }
 .input-sm { font-size: 12px; flex: 1; min-width: 0; }
 
+/* ── Key combobox ──────────────────────────── */
+.key-combo { position: relative; display: inline-flex; flex: 1; min-width: 0; }
+.key-combo input { width: 100%; }
+.key-combo-list {
+  position: fixed;
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--surface0);
+  border: 1px solid var(--surface1);
+  border-radius: 4px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.key-combo-list div {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.key-combo-list div:hover, .key-combo-list div.active { background: var(--surface1); }
+.key-select-btn { cursor: pointer; user-select: none; width: 100%; }
+
 .muted { color: var(--overlay0); }
 .empty-hint { color: var(--overlay0); font-size: 13px; padding: 20px 16px; text-align: center; }
 

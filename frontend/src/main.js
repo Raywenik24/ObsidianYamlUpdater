@@ -123,8 +123,6 @@ function loadNotes(notes) {
   lastClickedPath = null;
   noteStatuses.clear();
   knownKeys = [...new Set(notes.flatMap(n => Object.keys(n.fields || {})))].sort();
-  const dl = document.getElementById('known-keys-list');
-  dl.innerHTML = knownKeys.map(k => `<option value="${esc(k)}">`).join('');
   noteFilter.disabled = false;
   btnSelectAll.disabled = false;
   btnSelectNone.disabled = false;
@@ -424,6 +422,149 @@ function addOp(op) {
   renderOps();
 }
 
+function buildKeyCombo(value, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'key-combo';
+
+  const inp = document.createElement('input');
+  inp.className = 'input op-key';
+  inp.placeholder = 'Key';
+  inp.value = value;
+  wrap.appendChild(inp);
+
+  const list = document.createElement('div');
+  list.className = 'key-combo-list';
+  list.style.display = 'none';
+  document.body.appendChild(list);
+
+  let activeIdx = -1;
+
+  function positionList() {
+    const r = inp.getBoundingClientRect();
+    list.style.left = r.left + 'px';
+    list.style.top = (r.bottom + 2) + 'px';
+    list.style.width = r.width + 'px';
+  }
+
+  function showList(filter) {
+    const q = filter.toLowerCase();
+    const matches = q ? knownKeys.filter(k => k.toLowerCase().includes(q)) : knownKeys;
+    list.innerHTML = '';
+    activeIdx = -1;
+    if (!matches.length) { list.style.display = 'none'; return; }
+    matches.forEach((k, i) => {
+      const d = document.createElement('div');
+      d.textContent = k;
+      d.addEventListener('mousedown', e => {
+        e.preventDefault();
+        inp.value = k;
+        onChange(k);
+        list.style.display = 'none';
+      });
+      list.appendChild(d);
+    });
+    positionList();
+    list.style.display = 'block';
+  }
+
+  inp.addEventListener('focus', () => showList(inp.value));
+  inp.addEventListener('input', () => { onChange(inp.value); showList(inp.value); });
+  inp.addEventListener('blur', () => { setTimeout(() => { list.style.display = 'none'; }, 150); });
+  inp.addEventListener('keydown', e => {
+    const items = list.querySelectorAll('div');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      items.forEach((d, i) => d.classList.toggle('active', i === activeIdx));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      items.forEach((d, i) => d.classList.toggle('active', i === activeIdx));
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      const chosen = items[activeIdx].textContent;
+      inp.value = chosen;
+      onChange(chosen);
+      list.style.display = 'none';
+    } else if (e.key === 'Escape') {
+      list.style.display = 'none';
+    }
+  });
+
+  new MutationObserver(() => {
+    if (!document.body.contains(wrap)) { list.remove(); }
+  }).observe(document.body, { childList: true, subtree: true });
+
+  return wrap;
+}
+
+function buildKeySelect(value, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'key-combo';
+
+  const btn = document.createElement('input');
+  btn.type = 'text';
+  btn.readOnly = true;
+  btn.className = 'input op-key key-select-btn';
+  btn.value = value || '';
+  btn.placeholder = '— key —';
+  wrap.appendChild(btn);
+
+  const list = document.createElement('div');
+  list.className = 'key-combo-list';
+  list.style.display = 'none';
+  document.body.appendChild(list);
+
+  let open = false;
+
+  function positionList() {
+    const r = btn.getBoundingClientRect();
+    list.style.left = r.left + 'px';
+    list.style.top = (r.bottom + 2) + 'px';
+    list.style.width = r.width + 'px';
+  }
+
+  function showList() {
+    list.innerHTML = '';
+    knownKeys.forEach(k => {
+      const d = document.createElement('div');
+      d.textContent = k;
+      if (k === value) d.classList.add('active');
+      d.addEventListener('mousedown', e => {
+        e.preventDefault();
+        btn.value = k;
+        value = k;
+        onChange(k);
+        list.style.display = 'none';
+        open = false;
+      });
+      list.appendChild(d);
+    });
+    positionList();
+    list.style.display = 'block';
+    open = true;
+  }
+
+  btn.addEventListener('click', () => {
+    if (open) { list.style.display = 'none'; open = false; }
+    else showList();
+  });
+
+  document.addEventListener('mousedown', e => {
+    if (!wrap.contains(e.target) && !list.contains(e.target)) {
+      list.style.display = 'none';
+      open = false;
+    }
+  });
+
+  new MutationObserver(() => {
+    if (!document.body.contains(wrap)) { list.remove(); }
+  }).observe(document.body, { childList: true, subtree: true });
+
+  return wrap;
+}
+
 function renderOps() {
   opsList.innerHTML = '';
   if (!ops.length) {
@@ -438,19 +579,13 @@ function renderOps() {
     const valueLabel = op.kind === 'rename' ? 'New key name'
       : op.kind === 'list-add' || op.kind === 'list-remove' ? 'Item'
       : 'Value';
+
     const isAddOp = op.kind === 'add';
-    const opKeyHTML = isAddOp
-      ? `<input class="input op-key" list="known-keys-list" placeholder="Key" value="${esc(op.key)}"/>`
-      : `<select class="input op-key">
-           <option value="" ${!op.key ? 'selected' : ''}>— key —</option>
-           ${knownKeys.map(k => `<option value="${esc(k)}" ${op.key === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}
-         </select>`;
 
     row.innerHTML = `
       <select class="op-kind" title="Operation type">
         ${OP_KINDS.map(k => `<option ${op.kind===k?'selected':''}>${k}</option>`).join('')}
       </select>
-      ${opKeyHTML}
       <input class="input op-val" placeholder="${valueLabel}" value="${esc(op.value)}" ${needsValue?'':'disabled style="opacity:.3"'}/>
       <button class="btn btn-danger op-del" title="Remove">✕</button>
       <div class="op-conds">
@@ -458,10 +593,12 @@ function renderOps() {
         <button class="btn btn-xs btn-add-cond">+ condition</button>
       </div>`;
 
+    const keyWidget = isAddOp
+      ? buildKeyCombo(op.key, v => { op.key = v; if (previewNoteSel.value) runPreview(); })
+      : buildKeySelect(op.key, v => { op.key = v; if (previewNoteSel.value) runPreview(); });
+    row.querySelector('.op-kind').insertAdjacentElement('afterend', keyWidget);
+
     row.querySelector('.op-kind').onchange = e => { op.kind = e.target.value; renderOps(); if (previewNoteSel.value) runPreview(); };
-    const opKeyEl = row.querySelector('.op-key');
-    opKeyEl.oninput = e => { op.key = e.target.value; };
-    opKeyEl.onchange = e => { op.key = e.target.value; };
     row.querySelector('.op-val').oninput = e => { op.value = e.target.value; };
     row.querySelector('.op-del').onclick = () => { ops.splice(i, 1); renderOps(); if (previewNoteSel.value) runPreview(); };
     row.querySelector('.btn-add-cond').onclick = () => {

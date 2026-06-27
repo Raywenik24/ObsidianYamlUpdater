@@ -73,6 +73,7 @@ btnPick.onclick = async () => {
     vaultPath.classList.remove('muted');
     h.update('Scanning vault…', 'busy');
     const notes = await Scan(dir);
+    localStorage.setItem('vaultPath', dir);
     loadNotes(notes);
     h.update(`Loaded ${notes.length} notes`, 'success');
   } catch (e) {
@@ -511,3 +512,17 @@ function collectOps() {
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── Startup: restore saved vault ───────────────────────────
+(async () => {
+  const saved = localStorage.getItem('vaultPath');
+  if (!saved) return;
+  try {
+    const notes = await Scan(saved);
+    vaultPath.textContent = saved;
+    vaultPath.classList.remove('muted');
+    loadNotes(notes);
+  } catch {
+    // path gone or invalid — silently skip
+  }
+})();

@@ -5,6 +5,7 @@ export namespace main {
 	    rel: string;
 	    title: string;
 	    fields: Record<string, string>;
+	    listFields: Record<string, Array<string>>;
 	
 	    static createFrom(source: any = {}) {
 	        return new NoteInfo(source);
@@ -16,6 +17,7 @@ export namespace main {
 	        this.rel = source["rel"];
 	        this.title = source["title"];
 	        this.fields = source["fields"];
+	        this.listFields = source["listFields"];
 	    }
 	}
 

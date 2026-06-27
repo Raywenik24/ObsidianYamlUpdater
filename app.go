@@ -40,10 +40,11 @@ func (a *App) PickVault() (string, error) {
 
 // NoteInfo is what the frontend receives per note.
 type NoteInfo struct {
-	Path   string            `json:"path"`
-	Rel    string            `json:"rel"`
-	Title  string            `json:"title"`
-	Fields map[string]string `json:"fields"`
+	Path       string              `json:"path"`
+	Rel        string              `json:"rel"`
+	Title      string              `json:"title"`
+	Fields     map[string]string   `json:"fields"`
+	ListFields map[string][]string `json:"listFields"`
 }
 
 // Scan walks the vault and returns NoteInfo for every readable .md file.
@@ -68,11 +69,22 @@ func (a *App) Scan(root string) ([]NoteInfo, error) {
 
 	out := make([]NoteInfo, 0, len(notes))
 	for _, n := range notes {
+		listFields := map[string][]string{}
+		for k, fm := range n.Meta {
+			if fm.IsList {
+				items := fm.Items
+				if items == nil {
+					items = []string{}
+				}
+				listFields[k] = items
+			}
+		}
 		out = append(out, NoteInfo{
-			Path:   n.Path,
-			Rel:    n.Rel,
-			Title:  n.Title,
-			Fields: n.Fields,
+			Path:       n.Path,
+			Rel:        n.Rel,
+			Title:      n.Title,
+			Fields:     n.Fields,
+			ListFields: listFields,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Rel < out[j].Rel })

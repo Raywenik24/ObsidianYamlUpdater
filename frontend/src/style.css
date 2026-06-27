@@ -164,6 +164,48 @@ main {
 }
 .input-filter:focus { outline: none; border-color: var(--mauve); }
 
+/* ── YAML filter panel ───────────────────── */
+
+.yaml-filter-section {
+  border-bottom: 1px solid var(--surface0);
+  background: var(--mantle);
+  flex-shrink: 0;
+}
+.yaml-filter-rows { display: flex; flex-direction: column; gap: 3px; padding: 4px 8px 0; }
+.yaml-filter-add-bar { padding: 4px 8px; }
+.yaml-filter-rows:empty + .yaml-filter-add-bar { padding-top: 6px; }
+
+.yaml-filter-row { display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
+
+.yaml-filter-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.yaml-filter-top .yaml-fk { flex: 1; min-width: 0; }
+
+.yaml-filter-bottom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 56px;
+}
+.yaml-filter-bottom .yaml-fop { width: 108px; flex-shrink: 0; }
+.yaml-filter-bottom .yaml-fv { flex: 1; min-width: 0; }
+
+.yaml-filter-where {
+  display: inline-block;
+  width: 48px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--overlay0);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.yaml-filter-top .yaml-fc { width: 52px; flex-shrink: 0; font-size: 11px; padding: 2px 4px; }
+
 /* ── Ops builder ─────────────────────────── */
 
 .presets-bar {

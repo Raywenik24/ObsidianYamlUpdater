@@ -2,10 +2,11 @@ import './style.css';
 import { PickVault, Scan, PreviewNote, DryRun, ApplyOps, ListPresets, SavePreset, LoadPreset, DeletePreset, GetUndoable, UndoLastRun } from '../wailsjs/go/main/App';
 
 // ── State ──────────────────────────────────────────────────
-let allNotes = [];   // NoteInfo[]
+let allNotes = [];        // NoteInfo[]
 let selected = new Set(); // paths
-let ops = [];        // {kind, key, value, conds:[]}
-let knownKeys = [];  // unique YAML keys across all notes
+let ops = [];             // {kind, key, value, conds:[]}
+let knownKeys = [];       // unique YAML keys across all notes
+let yamlFilters = [];     // {connector:'AND'|'OR', key:'', op:'=', value:''}
 
 // ── DOM refs ───────────────────────────────────────────────
 const btnPick        = document.getElementById('btn-pick');
@@ -122,6 +123,8 @@ function loadNotes(notes) {
   btnSelectAll.disabled = false;
   btnSelectNone.disabled = false;
   btnAddOp.disabled = false;
+  document.getElementById('btn-add-yaml-filter').disabled = false;
+  renderYamlFilters();
   renderNotes();
   populatePreviewSel();
   updateRunButtons();
@@ -158,19 +161,25 @@ function collectTreeNotes(node, folderPath) {
   return result;
 }
 
-function getVisibleNotesList() {
+function getFilteredNotes() {
   const q = noteFilter.value.toLowerCase();
-  const filtered = q ? allNotes.filter(n =>
+  let notes = q ? allNotes.filter(n =>
     n.title.toLowerCase().includes(q) || n.rel.toLowerCase().includes(q)
   ) : allNotes;
+  const activeFilters = yamlFilters.filter(f => f.key || f.op === 'exists' || f.op === 'not exists');
+  if (activeFilters.length) notes = notes.filter(n => matchYamlFilters(n, activeFilters));
+  return notes;
+}
+
+function getVisibleNotesList() {
+  const filtered = getFilteredNotes();
+  const q = noteFilter.value.toLowerCase();
   return q ? filtered : collectTreeNotes(buildTree(filtered), '');
 }
 
 function renderNotes() {
+  const filtered = getFilteredNotes();
   const q = noteFilter.value.toLowerCase();
-  const filtered = q ? allNotes.filter(n =>
-    n.title.toLowerCase().includes(q) || n.rel.toLowerCase().includes(q)
-  ) : allNotes;
 
   if (!filtered.length) {
     noteList.innerHTML = '<p class="empty-hint">No notes match the filter.</p>';
@@ -279,6 +288,90 @@ function makeNoteRow(n, depth) {
 
 function updateSelCount() {
   selCount.textContent = selected.size ? `${selected.size} selected` : '';
+}
+
+// ── YAML filter ────────────────────────────────────────────
+const YAML_OPS = ['=', '!=', '<', '>', 'contains', 'exists', 'not exists'];
+
+function renderYamlFilters() {
+  const container = document.getElementById('yaml-filter-rows');
+  container.innerHTML = '';
+  yamlFilters.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'yaml-filter-row';
+    const needsVal = f.op !== 'exists' && f.op !== 'not exists';
+    const connectorHTML = i === 0
+      ? '<span class="yaml-filter-where">WHERE</span>'
+      : `<select class="input yaml-fc">${['AND','OR'].map(c => `<option ${f.connector===c?'selected':''}>${c}</option>`).join('')}</select>`;
+    row.innerHTML = `
+      <div class="yaml-filter-top">
+        ${connectorHTML}
+        <select class="input input-sm yaml-fk">
+          <option value="" ${!f.key?'selected':''}>— key —</option>
+          ${knownKeys.map(k => `<option value="${esc(k)}" ${f.key===k?'selected':''}>${esc(k)}</option>`).join('')}
+        </select>
+        <button class="btn btn-danger yaml-fdel" title="Remove">×</button>
+      </div>
+      <div class="yaml-filter-bottom">
+        <select class="input input-sm yaml-fop">
+          ${YAML_OPS.map(o => `<option ${f.op===o?'selected':''}>${o}</option>`).join('')}
+        </select>
+        <input class="input input-sm yaml-fv" placeholder="value" value="${esc(f.value)}" ${needsVal?'':'disabled style="opacity:.3"'}/>
+      </div>`;
+    const connSel = row.querySelector('.yaml-fc');
+    if (connSel) connSel.onchange = e => { f.connector = e.target.value; renderNotes(); };
+    row.querySelector('.yaml-fk').onchange = e => { f.key = e.target.value; renderNotes(); };
+    row.querySelector('.yaml-fop').onchange = e => { f.op = e.target.value; renderYamlFilters(); renderNotes(); };
+    row.querySelector('.yaml-fv').oninput = e => { f.value = e.target.value; renderNotes(); };
+    row.querySelector('.yaml-fdel').onclick = () => { yamlFilters.splice(i, 1); renderYamlFilters(); renderNotes(); };
+    container.appendChild(row);
+  });
+}
+
+document.getElementById('btn-add-yaml-filter').onclick = () => {
+  yamlFilters.push({ connector: 'AND', key: '', op: '=', value: '' });
+  renderYamlFilters();
+  renderNotes();
+};
+
+function matchYamlFilters(note, filters) {
+  let result = matchOneYamlFilter(note, filters[0]);
+  for (let i = 1; i < filters.length; i++) {
+    const m = matchOneYamlFilter(note, filters[i]);
+    result = filters[i].connector === 'OR' ? result || m : result && m;
+  }
+  return result;
+}
+
+function matchOneYamlFilter(note, f) {
+  const { key, op, value } = f;
+  const listItems = key && note.listFields && note.listFields[key];
+  if (listItems) {
+    if (op === 'exists') return listItems.length > 0;
+    if (op === 'not exists') return listItems.length === 0;
+    return listItems.some(item => compareYamlValues(String(item), op, value));
+  }
+  const raw = key ? note.fields[key] : undefined;
+  if (op === 'exists') return raw !== undefined && raw !== null && raw !== '';
+  if (op === 'not exists') return raw === undefined || raw === null || raw === '';
+  if (!key || raw === undefined || raw === null) return true;
+  // inline list like "[a, b, c]"
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    const items = raw.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
+    return items.some(item => compareYamlValues(item, op, value));
+  }
+  return compareYamlValues(String(raw), op, value);
+}
+
+function compareYamlValues(rawStr, op, value) {
+  switch (op) {
+    case '=':        return rawStr === value;
+    case '!=':       return rawStr !== value;
+    case 'contains': return rawStr.toLowerCase().includes(value.toLowerCase());
+    case '<': { const n = parseFloat(rawStr), v = parseFloat(value); return !isNaN(n)&&!isNaN(v) ? n<v : rawStr<value; }
+    case '>': { const n = parseFloat(rawStr), v = parseFloat(value); return !isNaN(n)&&!isNaN(v) ? n>v : rawStr>value; }
+    default: return false;
+  }
 }
 
 noteFilter.oninput = renderNotes;

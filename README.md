@@ -1,32 +1,62 @@
 # ObsidianYamlUpdater
 
-A small local desktop tool for batch-editing the YAML frontmatter of Obsidian notes.
+A local desktop tool for batch-editing the YAML frontmatter of Obsidian notes. Pick your vault folder, select the notes you want to change, define operations (add, set, delete, rename fields, or modify list fields) with optional conditions, preview the changes on a sample note, run a dry run across all selected notes, then apply. Every run writes a timestamped log and a one-shot undo file. No server, no network, no database — it reads and writes local files only.
 
-Open the window, pick your vault folder, see the notes, select the ones you want, define the
-YAML changes (add / delete / rename / set — with conditions), preview the result on a sample
-note, then apply across every selected file. Every run writes a log of exactly what happened.
+![ObsidianYamlUpdater UI](docs/screenshot.png)
 
-Built with [Wails](https://wails.io) (Go backend + web frontend), compiles to a single `.exe`.
-No server, no network, no database — it only reads and writes the local files you select.
+## Features
 
-## Status
+**Operations**
+- `add` — add a key only if it doesn't already exist
+- `set` — create or overwrite a scalar field
+- `delete` — remove a key entirely
+- `rename` — rename a key, preserving its value
+- `list-add` — append an item to a YAML list field (creates the list if missing)
+- `list-remove` — remove an item from a YAML list field
 
-Early development. See the design docs (Obsidian vault, "ClaudeCode / 01 - Projects / ObsidianYamlUpdater").
+**Conditions** (any operation can be guarded by one or more conditions)
+- Key exists / key missing
+- Value equals / value contains
+- Numeric comparisons: `>`, `<`, `>=`, `<=`
+- Date comparisons: before / after (ISO 8601)
+- Folder scope: note is in folder / not in folder (direct children or recursive)
 
-## Develop
+**Other**
+- Tree view of vault with expand/collapse and inline filtering
+- Select all / deselect all
+- Before/after preview on any single note
+- Dry run across all selected notes before committing
+- One-click apply with mandatory dry-run gate
+- Accept (discard undo) or Undo last run
+- Timestamped log files written next to the exe (`logs/`)
+- Preset save/load/delete for reusing operation sets
+- Single `.exe`, no installer required
+
+## Download & run
+
+1. Download `ObsidianYamlUpdater.exe` from the [latest release](../../releases/latest).
+2. Place it anywhere — a `logs/` folder and a `presets/` folder will be created next to it on first run.
+3. Double-click to run. No installation needed.
+
+**System requirements:** Windows 10 or later (64-bit).
+
+## Build from source
+
+**Prerequisites:** Go 1.23+, Node.js (LTS), and the Wails CLI.
 
 ```powershell
-wails dev      # live development with hot-reload
-wails build    # build the redistributable .exe (output: build/bin/ObsidianYamlUpdater.exe)
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-Requires Go 1.23+, Node, and the Wails CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`).
+**Run in dev mode** (hot-reload frontend, live Go backend):
 
-## How it works
+```powershell
+wails dev
+```
 
-- **vault** — scans the chosen folder for `.md` notes, parses frontmatter, and writes changes
-  back surgically (only the touched lines) via atomic temp-file + rename.
-- **ops** — the operation model (add/delete/rename/set) plus guard conditions, with a
-  dry-run/apply executor.
-- **frontend** — the window: folder picker, note list (filterable), operation builder,
-  before/after preview pane, dry-run + apply, and a live log.
+**Build release exe:**
+
+```powershell
+wails build
+# output: build/bin/ObsidianYamlUpdater.exe
+```

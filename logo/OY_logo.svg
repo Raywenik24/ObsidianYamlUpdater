@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="478.40048"
+   height="468.49942"
+   viewBox="0 0 478.40048 468.49942"
+   sodipodi:docname="OY_logo.svg"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="0.92138672"
+     inkscape:cx="167.13937"
+     inkscape:cy="51.552729"
+     inkscape:window-width="2046"
+     inkscape:window-height="1240"
+     inkscape:window-x="4001"
+     inkscape:window-y="100"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="g5188" />
+  <g
+     inkscape:groupmode="layer"
+     inkscape:label="Image"
+     id="g1"
+     transform="translate(-15.113405,-19.81187)">
+    <g
+       id="g5188">
+      <rect
+         style="display:inline;fill:#c6b3e5;fill-opacity:0.972549;stroke:#9a7fc9;stroke-width:3.17480315;stroke-opacity:0.996078;stroke-dasharray:none"
+         id="rect1"
+         width="477.87"
+         height="467.96893"
+         x="15.37865"
+         y="20.077114"
+         ry="120" />
+      <g
+         id="g5187"
+         inkscape:label="g5187"
+         transform="matrix(1.3676817,0,0,1.3676817,-93.040423,-90.474545)">
+        <text
+           xml:space="preserve"
+           style="font-size:265.019px;text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#ffffff;fill-opacity:0.992157;stroke:#9a7fc9;stroke-width:4.75782;stroke-dasharray:none;stroke-opacity:0.996078"
+           x="172.79149"
+           y="349.04086"
+           id="text5186"
+           transform="scale(1.0348483,0.96632524)"><tspan
+             sodipodi:role="line"
+             id="tspan5186"
+             x="172.79149"
+             y="349.04086"
+             style="fill:#ffffff;stroke:#9a7fc9;stroke-width:4.75782;stroke-opacity:0.996078">O</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:259.676px;text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#ffffff;fill-opacity:0.992157;stroke:#9a7fc9;stroke-width:4.66016;stroke-dasharray:none;stroke-opacity:0.996078"
+           x="346.33798"
+           y="338.83649"
+           id="text5187"
+           transform="scale(0.9949227,1.0051032)"><tspan
+             sodipodi:role="line"
+             id="tspan5187"
+             x="346.33798"
+             y="338.83649"
+             style="fill:#ffffff;stroke:#9a7fc9;stroke-width:4.66016;stroke-dasharray:none;stroke-opacity:0.996078">Y</tspan></text>
+      </g>
+    </g>
+  </g>
+</svg>

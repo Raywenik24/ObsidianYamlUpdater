@@ -46,15 +46,15 @@ header {
   background: var(--mantle);
   border-bottom: 1px solid var(--surface0);
   position: sticky; top: 0; z-index: 10;
-  height: 41px;
+  height: 46px;
   --wails-draggable: drag;
 }
 
 .titlebar-icon {
-  width: 18px;
-  height: 18px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
-  border-radius: 3px;
+  border-radius: 6px;
   --wails-draggable: drag;
 }
 

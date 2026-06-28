@@ -3,6 +3,7 @@ node_modules
 frontend/dist
 build.sh
 buildgitbash.sh
+run.sh
 .vscode/*
 !.vscode/launch.json
 .claude/
